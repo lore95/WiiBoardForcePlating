@@ -6,9 +6,15 @@ from collections import deque
 import json
 from datetime import datetime
 import time
+import threading
+import serial
+import time
 
 # Configure the serial connection
-portName = input("provide yur device name eg: /dev/cu.usbmodem11101 \n")
+_conf = input("Which system are u using? MAC or WIN \n").upper()
+
+# Configure the serial connection
+portName = input("provide yur device name eg: for mac /dev/cu.usbmodem11101 or for windows COM6 \n")
 ser = serial.Serial(
     port=portName,         # Set to the appropriate COM port
     baudrate=9600,       # Adjust to match your device's baud rate
@@ -18,7 +24,10 @@ ser = serial.Serial(
     timeout=1            # Timeout for reading (in seconds)
 )
 
-
+file_name = input("What name do you want to give you json file with the pressure readings? default name will be: sensor_data.json) : ")
+# Array to store the uncomputed data read from COM or dev/cu port
+uncomputedData = []
+threadFinished = False
 # Initialize deques to store recent data points
 t_data = []
 v1_data = []    # Stores V1 values, up to 100 points
@@ -26,24 +35,19 @@ v2_data = []   # Stores V2 values, up to 100 points
 v3_data = []    # Stores V3 values, up to 100 points
 v4_data = []  # Stores V4 values, up to 100 points
 
-# Create a figure and axis for plotting
-fig, ax = plt.subplots()
-line1, = ax.plot([], [], 'r-', label='V1')
-line2, = ax.plot([], [], 'g-', label='V2')
-line3, = ax.plot([], [], 'b-', label='V3')
-line4, = ax.plot([], [], 'y-', label='V4')
-
-# Example usage to get individual variables
-V1Slope, V2Slope, V3Slope, V4Slope, V1Intercept, V2Intercept, V3Intercept, V4Intercept = getSlopes()
-
 
 # Fonction pour enregistrer les données en JSON après avoir collecté toutes les valeurs
-def save_data_to_json(t, v1, v2, v3, v4, timestamp):
+def save_data_to_json():
+    if (file_name == ''):
+        file_name = "sensor_data.json"
+    # Lecture du fichier existant ou création s'il n'existe pas
     try:
-        file_name = input("Veuillez entrer le nom du fichier (par défaut: sensor_data.json) : ")
-        # Ajoute un horodatage pour chaque enregistrement
-        timestamps = [datetime.now() for _ in range(len(t))]
+        with open(file_name + '.json', 'r') as file:
+            data_list = json.load(file)  # Charger les données existantes
+    except (FileNotFoundError, json.JSONDecodeError):
+        data_list = []  # Si le fichier n'existe pas ou est vide
 
+    for i in range(len(v1_data)):
         # Crée une liste de dictionnaires pour chaque entrée de données
         data = [
             {
@@ -56,71 +60,44 @@ def save_data_to_json(t, v1, v2, v3, v4, timestamp):
             }
             for i in range(len(t))
         ]
-
-        # Lecture du fichier existant ou création s'il n'existe pas
-        try:
-            with open(file_name + '.json', 'r') as file:
-                data_list = json.load(file)  # Charger les données existantes
-        except (FileNotFoundError, json.JSONDecodeError):
-            data_list = []  # Si le fichier n'existe pas ou est vide
-
         # Ajoute les nouvelles données collectées
         data_list.extend(data)
-
         # Écriture dans le fichier JSON (avec indentation pour lisibilité)
         with open(file_name + '.json', 'w') as file:
             json.dump(data_list, file, indent=4)
 
-    except Exception as e:
-        print(f"Erreur lors de l'enregistrement des données : {e}")
-
-
-def init():
-    ax.set_xlim(0, 100)  # Set x-axis limit (number of data points)
-    ax.set_ylim(-1000000, 1000)  # Set y-axis limit (adjust as needed)
-    ax.set_xlabel('Sample Number')
-    ax.set_ylabel('Values')
-    ax.legend(loc='upper left')
-    return line1, line2, line3, line4
-
-def getPressure():
-    line = ser.readline().decode('utf-8').strip()
-    match = re.match(r'Time:(-?\d+),V1:(-?\d+),V2:(-?\d+),V3:(-?\d+),V4:(-?\d+)', line)
-    if match:
-        _, v1, v2, v3, v4 = map(int, match.groups())
-        return (v1, v2, v3, v4)
-
-
-def update(frame):
-    line = ser.readline().decode('utf-8').strip()
-    # t0 = time.time()
-    match = re.match(r'Time:(-?\d+),V1:(-?\d+),V2:(-?\d+),V3:(-?\d+),V4:(-?\d+)', line)
-    if match:
-        t, v1, v2, v3, v4 = map(int, match.groups())
-        # print(f'V1, V2, V3, V4:{v1, v2, v3, v4}')
-        print(f"Time:{t/24000000}")
-        print(getWeight(v1))
-        t_data.append(t)
-        v1_data.append(v1)
-        v2_data.append(v2)
-        v3_data.append(v3)
-        v4_data.append(v4)
-
-        # save_data_to_json(v1, v2, v3, v4)
+def readFromSerialPort():
+    """Thread function to read data from COM port and append it to uncomputedData array."""
+    while threadFinished == False:
+        # Read a line from the serial port
+        raw_data = ser.read(ser.in_waiting or 1).decode('utf-8').strip()
+        lines = raw_data.split('\n')  # Split data into individual lines
+        for line in lines:
+            # Use regex to match the expected format for each line
+            match = re.match(r'Time:(-?\d+),V1:(-?\d+),V2:(-?\d+),V3:(-?\d+),V4:(-?\d+)', line.strip())
+            if match:
+                # Append the line to uncomputedData if it matches the format
+                uncomputedData.append(line.strip())
         
-        # Update plot data
-        x = range(len(v1_data))  # X-axis represents sample index
-        line1.set_data(x, v1_data)
-        line2.set_data(x, v2_data)
-        line3.set_data(x, v3_data)
-        line4.set_data(x, v4_data)
-
-        ax.set_xlim(max(0, len(v1_data) - 100), len(v1_data))
-        # t1 = time.time()
-        # print(f'Time:{t1-t0}')
-        return line1, line2, line3, line4 #timestamp
-
-sensor_labels = ['V1', 'V2', 'V3', 'V4']  # Assuming these are the sensor labels
+def elaboarteData():
+    if uncomputedData:
+        # Get the first item (FIFO approach)
+        line = uncomputedData.pop(0)
+        # Match the expected format again to extract values
+        match = re.match(r'Time:(-?\d+),V1:(-?\d+),V2:(-?\d+),V3:(-?\d+),V4:(-?\d+)', line)
+        if match:
+            # Pass the extracted values to computingData
+            t_data.append(int(match.group(1)/2400000))
+            v1_data.append(getWeight(1,int(match.group(2))))
+            v2_data.append(getWeight(2,int(match.group(3))))
+            v3_data.append(getWeight(3,int(match.group(4))))
+            v4_data.append(getWeight(4,int(match.group(5))))
+            print(computedData)
+        else:
+            print("the line: " + line + " did not match the format and has been removed")
+    else:
+        print("all read data has been elaborated, quitting threads and executing the save to json operation")
+        save_data_to_json()
 
 def getSlopes(sps=640, gain=128):
     """
@@ -139,9 +116,9 @@ def getSlopes(sps=640, gain=128):
     for label in sensor_labels:
         # input_file = 'regression_' + label + '_' + str(sps) + '_' + str(gain) + '.json'
         if _conf == "MAC":
-            input_file = f'sensor_data/results/regression_{label}_{sps}_{gain}.json'
+            input_file = f'reading/regression_{label}_{sps}_{gain}.json'
         else:
-            input_file = f'sensor_data\\results\\regression_{label}_{sps}_{gain}.json'
+            input_file = f'readings\\regression_{label}_{sps}_{gain}.json'
         
         try:
             # Open and load the JSON file
@@ -164,23 +141,30 @@ def getSlopes(sps=640, gain=128):
     # Unpack the slopes and intercepts and return as separate variables
     return (*slopes, *intercepts)
 
-def getWeight(v1,v2,v3,v4):
-    weightedV1 = V1Slope * v1 + V1Intercept
-    weightedV2 = V2Slope * v2 + V2Intercept
-    weightedV3 = V3Slope * v3 + V3Intercept
-    weightedV4 = V4Slope * v4 + V4Intercept
-    return (weightedV1,weightedV2,weightedV3,weightedV4)
-    
-if __name__ == '__main__':
-    # Set up animation
-    ani = animation.FuncAnimation(fig, update, init_func=init, blit=True, interval=0.001)
+def getWeight(sensorNumber, sensorValue):
+    if(sensorNumer ==1):
+        return( V1Slope * sensorValue + V1Intercept)
+    elif(sensorNumber == 2):
+        return(V2Slope * sensorValue + V2Intercept)
+    elif(sensorNumber == 3):
+        return(V3Slope * sensorValue + V3Intercept)
+    elif(sensorNumber == 4):
+        return(V4Slope * sensorValue + V4Intercept)
 
+# Example usage to get individual variables
+V1Slope, V2Slope, V3Slope, V4Slope, V1Intercept, V2Intercept, V3Intercept, V4Intercept = getSlopes()
 
-    plt.show()
+# Creating threads
+thread1 = threading.Thread(target=readFromSerialPort)
+thread2 = threading.Thread(target=process_data)
 
-    save_data_to_json(t_data, v1_data, v2_data, v3_data, v4_data)
-
-
-    # Close the serial port after closing the plot window
-    ser.close()
+# Start threads
+thread1.start()
+print("waiting for sesor data before elaborating it")
+time.sleep(1) #I wait one second before starting to elaborate data
+thread2.start()
+input("Press the enter key when you are done reading")
+threadFinished = True
+# Close the serial port after closing the plot window
+ser.close()
 
