@@ -37,33 +37,37 @@ v4_data = []  # Stores V4 values, up to 100 points
 
 # Fonction pour enregistrer les données en JSON après avoir collecté toutes les valeurs
 def save_data_to_json():
-    if (file_name == ''):
-        file_name = "sensor_data.json"
-    # Lecture du fichier existant ou création s'il n'existe pas
     try:
-        with open(file_name + '.json', 'r') as file:
-            data_list = json.load(file)  # Charger les données existantes
-    except (FileNotFoundError, json.JSONDecodeError):
-        data_list = []  # Si le fichier n'existe pas ou est vide
+        print('test')
+        for i in range(len(v1_data)):
+            # Crée une liste de dictionnaires pour chaque entrée de données
+            data = [
+                {
+                    'T': t_data[i],
+                    'V1': v1_data[i],
+                    'V2': v2_data[i],
+                    'V3': v3_data[i],
+                    'V4': v4_data[i]
+                }
+            ]
 
-    for i in range(len(v1_data)):
-        # Crée une liste de dictionnaires pour chaque entrée de données
-        data = [
-            {
-                'timestamp': timestamps[i],
-                'T': t[i],
-                'V1': v1[i],
-                'V2': v2[i],
-                'V3': v3[i],
-                'V4': v4[i]
-            }
-            for i in range(len(t))
-        ]
-        # Ajoute les nouvelles données collectées
-        data_list.extend(data)
-        # Écriture dans le fichier JSON (avec indentation pour lisibilité)
-        with open(file_name + '.json', 'w') as file:
-            json.dump(data_list, file, indent=4)
+            # Lecture du fichier existant ou création s'il n'existe pas
+            try:
+                with open(file_name + '.json', 'r') as file:
+                    data_list = json.load(file)  # Charger les données existantes
+            except (FileNotFoundError, json.JSONDecodeError):
+                data_list = []  # Si le fichier n'existe pas ou est vide
+
+            # Ajoute les nouvelles données collectées
+            data_list.extend(data)
+
+            # Écriture dans le fichier JSON (avec indentation pour lisibilité)
+            with open(file_name + '.json', 'w') as file:
+                json.dump(data_list, file, indent=4)
+
+    except Exception as e:
+        print(f"Erreur lors de l'enregistrement des données : {e}")
+
 
 def readFromSerialPort():
     """Thread function to read data from COM port and append it to uncomputedData array."""
@@ -79,25 +83,25 @@ def readFromSerialPort():
                 uncomputedData.append(line.strip())
         
 def elaboarteData():
-    if uncomputedData:
+    while uncomputedData:
         # Get the first item (FIFO approach)
         line = uncomputedData.pop(0)
         # Match the expected format again to extract values
         match = re.match(r'Time:(-?\d+),V1:(-?\d+),V2:(-?\d+),V3:(-?\d+),V4:(-?\d+)', line)
         if match:
             # Pass the extracted values to computingData
-            t_data.append(int(match.group(1)/2400000))
+            t_data.append(int(match.group(1))/2400000)
             v1_data.append(getWeight(1,int(match.group(2))))
             v2_data.append(getWeight(2,int(match.group(3))))
             v3_data.append(getWeight(3,int(match.group(4))))
             v4_data.append(getWeight(4,int(match.group(5))))
-            print(computedData)
+            print(match.group(2), match.group(3), match.group(4), match.group(5))
         else:
             print("the line: " + line + " did not match the format and has been removed")
-    else:
-        print("all read data has been elaborated, quitting threads and executing the save to json operation")
-        save_data_to_json()
-        fileIsSaved = True
+    
+    print("all read data has been elaborated, quitting threads and executing the save to json operation")
+    save_data_to_json()
+    fileIsSaved = True
 
 def getSlopes(sps=640, gain=128):
     """
@@ -112,7 +116,7 @@ def getSlopes(sps=640, gain=128):
     """
     slopes = []
     intercepts = []
-    
+    sensor_labels = ['V1', 'V2', 'V3', 'V4']
     for label in sensor_labels:
         # input_file = 'regression_' + label + '_' + str(sps) + '_' + str(gain) + '.json'
         if _conf == "MAC":
@@ -142,7 +146,7 @@ def getSlopes(sps=640, gain=128):
     return (*slopes, *intercepts)
 
 def getWeight(sensorNumber, sensorValue):
-    if(sensorNumer ==1):
+    if(sensorNumber ==1):
         return( V1Slope * sensorValue + V1Intercept)
     elif(sensorNumber == 2):
         return(V2Slope * sensorValue + V2Intercept)
@@ -156,7 +160,7 @@ V1Slope, V2Slope, V3Slope, V4Slope, V1Intercept, V2Intercept, V3Intercept, V4Int
 
 # Creating threads
 thread1 = threading.Thread(target=readFromSerialPort)
-thread2 = threading.Thread(target=process_data)
+thread2 = threading.Thread(target=elaboarteData)
 
 # Start threads
 thread1.start()
