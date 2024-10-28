@@ -167,7 +167,7 @@ input("Press the enter key when you are done reading")
 
 threadFinished = True
 # Close the serial port after closing the plot window
-while(fileIsSaved == False )
+while(fileIsSaved == False ):
     time.sleep(1) # I was for a second to see if the file has been saved and I can now join the threads
 thread1.Join()
 thread2.Join()
