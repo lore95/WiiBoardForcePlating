@@ -28,6 +28,7 @@ uncomputedData = []
 threadFinished = False
 fileIsSaved = False
 # Initialize deques to store recent data points
+t0 = 0 
 t_data = []
 v1_data = []    # Stores V1 values, up to 100 points
 v2_data = []   # Stores V2 values, up to 100 points
@@ -83,6 +84,7 @@ def readFromSerialPort():
                 uncomputedData.append(line.strip())
         
 def elaboarteData():
+    global t0
     while uncomputedData:
         # Get the first item (FIFO approach)
         line = uncomputedData.pop(0)
@@ -90,7 +92,8 @@ def elaboarteData():
         match = re.match(r'Time:(-?\d+),V1:(-?\d+),V2:(-?\d+),V3:(-?\d+),V4:(-?\d+)', line)
         if match:
             # Pass the extracted values to computingData
-            t_data.append(int(match.group(1))/2400000)
+            t0 = t0 + int(match.group(1))/2400000
+            t_data.append(t0)
             v1_data.append(getWeight(1,int(match.group(2))))
             v2_data.append(getWeight(2,int(match.group(3))))
             v3_data.append(getWeight(3,int(match.group(4))))
