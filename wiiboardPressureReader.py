@@ -26,6 +26,7 @@ file_name = input("What name do you want to give you json file with the pressure
 # Array to store the uncomputed data read from COM or dev/cu port
 uncomputedData = []
 threadFinished = False
+fileIsSaved = False
 # Initialize deques to store recent data points
 t_data = []
 v1_data = []    # Stores V1 values, up to 100 points
@@ -96,6 +97,7 @@ def elaboarteData():
     else:
         print("all read data has been elaborated, quitting threads and executing the save to json operation")
         save_data_to_json()
+        fileIsSaved = True
 
 def getSlopes(sps=640, gain=128):
     """
@@ -162,7 +164,14 @@ print("waiting for sesor data before elaborating it")
 time.sleep(1) #I wait one second before starting to elaborate data
 thread2.start()
 input("Press the enter key when you are done reading")
+
 threadFinished = True
 # Close the serial port after closing the plot window
+while(fileIsSaved == False )
+    time.sleep(1) # I was for a second to see if the file has been saved and I can now join the threads
+thread1.Join()
+thread2.Join()
 ser.close()
+
+print("file has been saved at " + file_name + " hope you get all u need from it sincerely DataFusion")
 
