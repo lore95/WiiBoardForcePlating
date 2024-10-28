@@ -7,8 +7,6 @@ import json
 from datetime import datetime
 import time
 import threading
-import serial
-import time
 
 # Configure the serial connection
 _conf = input("Which system are u using? MAC or WIN \n").upper()
