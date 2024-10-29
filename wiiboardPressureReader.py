@@ -161,24 +161,24 @@ def getWeight(sensorNumber, sensorValue):
 # Example usage to get individual variables
 V1Slope, V2Slope, V3Slope, V4Slope, V1Intercept, V2Intercept, V3Intercept, V4Intercept = getSlopes()
 
-# Creating threads
+# Creating thread for array population with raw data
 thread1 = threading.Thread(target=readFromSerialPort)
-thread2 = threading.Thread(target=elaboarteData)
-
+thread2 = threading.Thread(target=elaboarteData())
 # Start threads
 thread1.start()
 print("waiting for sesor data before elaborating it")
 time.sleep(1) #I wait one second before starting to elaborate data
 thread2.start()
 input("Press the enter key when you are done reading")
-
 threadFinished = True
-# Close the serial port after closing the plot window
+#check if the loop of data elaboartion has endned filIsSaved would be true
 while(fileIsSaved == False ):
-    time.sleep(1) # I was for a second to see if the file has been saved and I can now join the threads
+    time.sleep(0.5) # I was for a second to see if the file has been saved and I can now join the threads
+
 thread1.Join()
 thread2.Join()
+print("file has been saved at " + file_name + " hope you get all u need from it sincerely DataFusion")
+# Close the serial port after closing the plot window
 ser.close()
 
-print("file has been saved at " + file_name + " hope you get all u need from it sincerely DataFusion")
 
