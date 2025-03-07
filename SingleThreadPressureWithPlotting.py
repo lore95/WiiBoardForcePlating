@@ -17,6 +17,7 @@ ser = serial.Serial(
     bytesize=serial.EIGHTBITS,
     timeout=1            # Timeout for reading (in seconds)
 )
+ser.flush()  # Flush the input buffer
 
 # Initialize deques to store recent data points
 t0 = 0
